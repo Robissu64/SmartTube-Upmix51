@@ -2,8 +2,10 @@ name: Upmix 5.1 V0.1b
 
 on:
   workflow_dispatch:
+
   push:
-    branches: [experimental/upmix51-v01b]
+    branches:
+      - experimental/upmix51-v01b
 
 permissions:
   contents: read
@@ -13,11 +15,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           submodules: recursive
 
-      # Mantemos Java 17 para as ferramentas atuais do Android SDK.
+      - name: Prepare Gradle wrapper
+        run: chmod +x gradlew
+
+      # Java 17 é usado primeiro porque as ferramentas atuais
+      # do Android SDK funcionam corretamente com ele.
       - name: Set up Java 17 for Android SDK tools
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
         with:
@@ -27,13 +34,20 @@ jobs:
       - name: Install Android build dependencies
         run: |
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+
           echo "Android SDK: $ANDROID_SDK_ROOT"
           echo "sdkmanager: $SDKMANAGER"
-          "$SDKMANAGER" --version
-          "$SDKMANAGER" 'platforms;android-34' 'build-tools;30.0.3' 'ndk;21.0.6113669'
 
-      # O ExoPlayer 2.10.6 usa uma stack Robolectric/ASM antiga.
-      # Java 11 é usado para evitar incompatibilidade de bytecode com Java 17.
+          "$SDKMANAGER" --version
+
+          "$SDKMANAGER" \
+            'platforms;android-34' \
+            'build-tools;30.0.3' \
+            'ndk;21.0.6113669'
+
+      # O SmartTube usa um ExoPlayer antigo (2.10.6) e uma
+      # stack antiga de Robolectric/ASM.
+      # Java 11 tende a ser mais compatível com esse ambiente.
       - name: Switch to Java 11 for legacy Robolectric and Gradle
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
         with:
@@ -41,13 +55,14 @@ jobs:
           java-version: '11'
           cache: gradle
 
-      - name: Show Java version
+      - name: Show Java and Gradle versions
         run: |
           java -version
-          ./gradlew --version
+          bash gradlew --version
 
-      # Os testes são importantes, mas uma incompatibilidade do Robolectric
-      # não deve impedir a geração da APK experimental para teste real na TV.
+      # Os testes são úteis para validar o processador,
+      # mas não devem impedir a geração da APK experimental
+      # caso o Robolectric legado apresente incompatibilidade.
       - name: Run Upmix 5.1 unit tests
         continue-on-error: true
         run: |
@@ -55,19 +70,22 @@ jobs:
             :exoplayer-library-core:testDebugUnitTest \
             --tests '*Upmix*Test'
 
+      # Esta é a etapa decisiva para gerar a V0.1b.
       - name: Build V0.1b debug APKs
         run: |
           bash gradlew --no-daemon \
             :smarttubetv:assembleStbetaDebug
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - name: Upload V0.1b APKs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: SmartTube-Upmix51-v0.1b
           path: smarttubetv/build/outputs/apk/stbeta/debug/*.apk
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - name: Upload Upmix51 test report
         if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: Upmix51-test-report
           path: exoplayer-amzn-2.10.6/library/core/build/reports/tests/testDebugUnitTest/
