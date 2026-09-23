@@ -18,7 +18,12 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Install Android build dependencies
-        run: sdkmanager 'platforms;android-34' 'build-tools;30.0.3' 'ndk;21.0.6113669'
+        run: |
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          echo "Android SDK: $ANDROID_SDK_ROOT"
+          echo "sdkmanager: $SDKMANAGER"
+          "$SDKMANAGER" --version
+          "$SDKMANAGER" 'platforms;android-34' 'build-tools;30.0.3' 'ndk;21.0.6113669'
       - name: Test upmix and build signed debug APKs
         run: bash gradlew --no-daemon :exoplayer-library-core:testDebugUnitTest --tests '*Upmix*Test' :smarttubetv:assembleStbetaDebug
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
